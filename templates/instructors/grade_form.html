@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Grade Student | Aether University{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="glass-card p-4 p-md-5">
+                <span class="badge-pill-glow mb-2 d-inline-block">
+                    <i class="bi bi-award-fill me-1"></i> Weighted Assessment Grading
+                </span>
+                <h3 class="fw-bold text-white mb-1">{{ enrollment.student.user.get_full_display_name }}</h3>
+                <p class="text-secondary small mb-4">
+                    Student ID: <span class="text-info">{{ enrollment.student.student_id }}</span> • Course: {{ enrollment.course.code }}
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Assignment Score (Weight: 30%)</label>
+                        {{ form.assignment_score }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Midterm Exam Score (Weight: 30%)</label>
+                        {{ form.midterm_score }}
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-secondary fw-semibold">Final Examination Score (Weight: 40%)</label>
+                        {{ form.final_exam_score }}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{% url 'instructor_dashboard' %}" class="btn btn-outline-light btn-sm">Back to Roster</a>
+                        <button type="submit" class="btn btn-gradient-primary">
+                            <i class="bi bi-check-circle-fill me-1"></i> Save &amp; Recalculate GPA
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome | Aether University Student Portal{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-4">
+        <!-- Hero Section -->
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <span class="badge-pill-glow mb-3 d-inline-block">
+                    <i class="bi bi-stars me-1"></i> Next-Generation University Management Platform
+                </span>
+                <h1 class="display-4 fw-bold text-white mb-3">
+                    Unified Academic Intelligence & <span class="text-gradient">Student Portal</span>
+                </h1>
+                <p class="lead text-secondary mb-4">
+                    Engineered with Python Object-Oriented Programming and Django 5.2 LTS. Manage course enrollments, real-time attendance thresholds, weighted GPA analytics, assignments, and official transcripts in one secure platform.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="#workspaces" class="btn btn-gradient-primary">
+                        <i class="bi bi-rocket-takeoff me-2"></i>Explore Role Workspaces
+                    </a>
+                    <a href="/admin/" class="btn btn-outline-light px-4 py-2 rounded-3">
+                        <i class="bi bi-gear-wide-connected me-2"></i>Django Admin Console
+                    </a>
+                </div>
+            </div>
+
+            <!-- Live Architecture Metrics Card -->
+            <div class="col-lg-5">
+                <div class="glass-card p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom border-secondary border-opacity-25">
+                        <div>
+                            <span class="text-uppercase text-info fw-semibold" style="font-size: 0.7rem;">System Telemetry</span>
+                            <h5 class="mb-0 fw-bold text-white">Academic Engine Status</h5>
+                        </div>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50">
+                            Active • SQLite3 ORM
+                        </span>
+                    </div>
+
+                    <div class="row g-3 text-center mb-3">
+                        <div class="col-4">
+                            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                <div class="fs-4 fw-bold text-info" style="font-family: 'JetBrains Mono', monospace;">3</div>
+                                <div class="small text-secondary">RBAC Roles</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                <div class="fs-4 fw-bold text-white" style="font-family: 'JetBrains Mono', monospace;">4.00</div>
+                                <div class="small text-secondary">GPA Engine</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25">
+                                <div class="fs-4 fw-bold text-warning" style="font-family: 'JetBrains Mono', monospace;">75%</div>
+                                <div class="small text-secondary">Attendance Rule</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="small text-secondary d-flex justify-content-between">
+                        <span><i class="bi bi-check-circle-fill text-success me-1"></i>OOP Domain Models Ready</span>
+                        <span><i class="bi bi-lock-fill text-info me-1"></i>PBKDF2 / Argon2 Auth</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Three Role Workspaces Section -->
+        <div id="workspaces" class="row g-4 mt-5 pt-4">
+            <div class="col-md-4">
+                <div class="glass-card p-4 h-100">
+                    <div class="d-inline-flex p-3 rounded-3 bg-primary bg-opacity-10 text-primary mb-3">
+                        <i class="bi bi-person-badge fs-3"></i>
+                    </div>
+                    <h4 class="fw-bold text-white">Student Workspace</h4>
+                    <p class="text-secondary small mb-3">
+                        Personalized dashboard with real-time GPA calculation, course enrollment with conflict & prerequisite checks, assignment uploads, and attendance alerts.
+                    </p>
+                    <span class="badge bg-primary bg-opacity-25 text-info">Module Phase 5–8</span>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card p-4 h-100">
+                    <div class="d-inline-flex p-3 rounded-3 bg-info bg-opacity-10 text-info mb-3">
+                        <i class="bi bi-easel2 fs-3"></i>
+                    </div>
+                    <h4 class="fw-bold text-white">Instructor Workspace</h4>
+                    <p class="text-secondary small mb-3">
+                        Manage assigned courses, record session attendance with automatic student warnings, publish assignments, grade submissions, and view course analytics.
+                    </p>
+                    <span class="badge bg-info bg-opacity-25 text-info">Module Phase 9</span>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card p-4 h-100">
+                    <div class="d-inline-flex p-3 rounded-3 bg-warning bg-opacity-10 text-warning mb-3">
+                        <i class="bi bi-shield-lock fs-3"></i>
+                    </div>
+                    <h4 class="fw-bold text-white">Administrator Command</h4>
+                    <p class="text-secondary small mb-3">
+                        Complete institutional oversight: manage departments, academic semesters, course capacities, user accounts, PDF/Excel reports, and security audit logs.
+                    </p>
+                    <span class="badge bg-warning bg-opacity-25 text-warning">Module Phase 10</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

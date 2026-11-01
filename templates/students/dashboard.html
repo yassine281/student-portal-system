@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+
+{% block title %}Student Dashboard | {{ student.user.get_full_display_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Student Profile Header Banner -->
+    <div class="glass-card p-4 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-md-7">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="badge-pill-glow">
+                        <i class="bi bi-mortarboard-fill me-1"></i> {{ current_semester.name }}
+                    </span>
+                    <a href="{% url 'download_transcript' %}" class="btn btn-outline-info btn-sm rounded-pill px-3">
+                        <i class="bi bi-file-earmark-arrow-down-fill me-1"></i> Download Official Transcript
+                    </a>
+                </div>
+                <h2 class="fw-bold text-white mb-1">{{ student.user.get_full_display_name }}</h2>
+                <p class="text-secondary mb-0 small">
+                    <span class="text-info fw-semibold" style="font-family: 'JetBrains Mono', monospace;">ID: {{ student.student_id }}</span>
+                    • {{ student.department.name }} • Semester {{ student.current_semester_number }}
+                    • <span class="badge bg-success bg-opacity-25 text-success">{{ student.get_academic_status_display }}</span>
+                </p>
+            </div>
+            <div class="col-md-5 text-md-end">
+                <div class="d-inline-flex gap-3">
+                    <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                        <div class="fs-4 fw-bold text-info" style="font-family: 'JetBrains Mono', monospace;">{{ gpa|floatformat:2 }}</div>
+                        <div class="small text-secondary">Cumulative GPA</div>
+                    </div>
+                    <div class="p-3 rounded-3 bg-dark border border-secondary border-opacity-25 text-center">
+                        <div class="fs-4 fw-bold {% if attendance_pct < 75 %}text-danger{% else %}text-success{% endif %}" style="font-family: 'JetBrains Mono', monospace;">
+                            {{ attendance_pct }}%
+                        </div>
+                        <div class="small text-secondary">Attendance</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left 8 Columns: Active Enrollments & Catalog -->
+        <div class="col-lg-8">
+            <!-- Current Enrolled Courses with Withdrawal -->
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold text-white mb-3">
+                    <i class="bi bi-journal-bookmark-fill text-info me-2"></i>Enrolled Courses ({{ total_credits }} Credits)
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0">
+                        <thead class="text-secondary small">
+                            <tr>
+                                <th>Code</th>
+                                <th>Course Title</th>
+                                <th>Attendance</th>
+                                <th>Grade</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for enrollment in active_enrollments %}
+                            <tr>
+                                <td class="fw-bold text-info" style="font-family: 'JetBrains Mono', monospace;">{{ enrollment.course.code }}</td>
+                                <td>
+                                    <div class="fw-semibold text-white">{{ enrollment.course.title }}</div>
+                                    <div class="small text-secondary">{{ enrollment.course.schedule_days }} {{ enrollment.course.schedule_time }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge {% if enrollment.course_attendance_percentage < 75 %}bg-danger{% else %}bg-success{% endif %} bg-opacity-25 text-white">
+                                        {{ enrollment.course_attendance_percentage }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if enrollment.grade %}
+                                        <span class="fw-bold text-info" style="font-family: 'JetBrains Mono', monospace;">
+                                            {{ enrollment.grade.letter_grade }} ({{ enrollment.grade.total_percentage }}%)
+                                        </span>
+                                    {% else %}
+                                        <span class="text-secondary small">In Progress</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'withdraw_course' enrollment.id %}" class="btn btn-outline-danger btn-sm"
+                                       onclick="return confirm('Are you sure you want to withdraw from {{ enrollment.course.code }}?');">
+                                        Withdraw
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-secondary py-3">No active courses enrolled. Select a course from the catalog below!</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Course Catalog with 1-Click Enrollment -->
+            <div class="glass-card p-4 mb-4">
+                <h5 class="fw-bold text-white mb-3">
+                    <i class="bi bi-collection-play-fill text-primary me-2"></i>Course Catalog &amp; 1-Click Enrollment
+                </h5>
+                {% for item in catalog_courses %}
+                <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 mb-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <span class="badge bg-primary bg-opacity-25 text-info me-2" style="font-family: 'JetBrains Mono', monospace;">
+                            {{ item.course.code }}
+                        </span>
+                        <span class="fw-bold text-white">{{ item.course.title }}</span>
+                        <span class="small text-secondary ms-1">({{ item.course.credits }} Cr)</span>
+                        <div class="small text-secondary mt-1">
+                            {{ item.course.schedule_days }} {{ item.course.schedule_time }} • {{ item.course.remaining_seats }}/{{ item.course.max_capacity }} Seats
+                        </div>
+                        <div class="small mt-1 {% if item.allowed %}text-success{% else %}text-warning{% endif %}">
+                            <i class="bi {% if item.allowed %}bi-check-circle-fill{% else %}bi-lock-fill{% endif %} me-1"></i>
+                            {{ item.reason }}
+                        </div>
+                    </div>
+                    <div>
+                        {% if item.allowed %}
+                            <a href="{% url 'enroll_course' item.course.id %}" class="btn btn-gradient-primary btn-sm">
+                                Enroll Now
+                            </a>
+                        {% else %}
+                            <button class="btn btn-secondary btn-sm opacity-50" disabled>Locked</button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-secondary small mb-0">You are enrolled in all available courses for this semester.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Assignments Deliverables Module -->
+            <div class="glass-card p-4">
+                <h5 class="fw-bold text-white mb-3">
+                    <i class="bi bi-file-earmark-arrow-up-fill text-success me-2"></i>Course Assignments &amp; Submissions
+                </h5>
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for assignment in upcoming_assignments %}
+                    <div class="list-group-item bg-dark bg-opacity-50 border-secondary text-white d-flex justify-content-between align-items-center py-3 rounded-3 mb-2">
+                        <div>
+                            <div class="small text-info fw-semibold">{{ assignment.course.code }}</div>
+                            <div class="fw-bold">{{ assignment.title }}</div>
+                            <div class="small text-secondary">Due: {{ assignment.due_date|date:"M d, Y H:i" }}</div>
+                        </div>
+                        <a href="{% url 'submit_assignment' assignment.id %}" class="btn btn-outline-info btn-sm">
+                            <i class="bi bi-upload me-1"></i> Submit File
+                        </a>
+                    </div>
+                    {% empty %}
+                    <p class="text-secondary small mb-0">No upcoming assignments due.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right 4 Columns: Chart.js Performance, Exams & Notifications -->
+        <div class="col-lg-4">
+            <!-- Chart.js GPA Visualization Card -->
+            <div class="glass-card p-4 mb-4">
+                <h6 class="fw-bold text-white mb-3">
+                    <i class="bi bi-graph-up-arrow text-info me-2"></i>GPA Progression Trend
+                </h6>
+                <div style="height: 220px;">
+                    <canvas id="gpaChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Upcoming Examinations -->
+            <div class="glass-card p-4 mb-4">
+                <h6 class="fw-bold text-white mb-3">
+                    <i class="bi bi-calendar2-event-fill text-warning me-2"></i>Upcoming Examinations
+                </h6>
+                {% for exam in upcoming_exams %}
+                <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 mb-2">
+                    <div class="small text-info fw-semibold">{{ exam.course.code }} • {{ exam.room_number }}</div>
+                    <div class="fw-semibold text-white small">{{ exam.title }}</div>
+                    <div class="small text-secondary">{{ exam.exam_date|date:"M d, Y H:i" }} ({{ exam.duration_minutes }} mins)</div>
+                </div>
+                {% empty %}
+                <p class="text-secondary small mb-0">No upcoming examinations scheduled.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Recent Notifications -->
+            <div class="glass-card p-4">
+                <h6 class="fw-bold text-white mb-3">
+                    <i class="bi bi-bell-fill text-info me-2"></i>Recent Notifications
+                </h6>
+                {% for note in notifications %}
+                <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary border-opacity-25 mb-2">
+                    <div class="fw-semibold text-white small">{{ note.title }}</div>
+                    <div class="small text-secondary">{{ note.message }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js CDN Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('gpaChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5 (Current)'],
+            datasets: [{
+                label: 'Cumulative GPA',
+                data: [3.45, 3.58, 3.64, 3.76, {{ gpa|default:3.67 }}],
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.35
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { min: 2.5, max: 4.0, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94A3B8' } },
+                x: { grid: { display: false }, ticks: { color: '#94A3B8' } }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Instructor Workspace | Aether University{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="glass-card p-4 mb-4">
+        <span class="badge-pill-glow mb-2 d-inline-block">
+            <i class="bi bi-easel2-fill me-1"></i> Faculty Instruction Console
+        </span>
+        <h2 class="fw-bold text-white mb-1">{{ instructor.academic_title }} {{ request.user.get_full_display_name }}</h2>
+        <p class="text-secondary small mb-0">
+            Employee Code: <span class="text-info">{{ instructor.employee_id }}</span> • {{ instructor.department.name }} • {{ instructor.office_location }}
+        </p>
+    </div>
+
+    <div class="glass-card p-4">
+        <h5 class="fw-bold text-white mb-3">
+            <i class="bi bi-people-fill text-info me-2"></i>Active Course Roster &amp; Weighted Grade Ledger
+        </h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="text-secondary small">
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Student Name</th>
+                        <th>Course</th>
+                        <th>Attendance</th>
+                        <th>Weighted Score</th>
+                        <th>Grade</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for enroll in enrollments %}
+                    <tr>
+                        <td class="text-info fw-semibold" style="font-family: 'JetBrains Mono', monospace;">{{ enroll.student.student_id }}</td>
+                        <td class="fw-semibold text-white">{{ enroll.student.user.get_full_display_name }}</td>
+                        <td>{{ enroll.course.code }} — {{ enroll.course.title }}</td>
+                        <td>{{ enroll.course_attendance_percentage }}%</td>
+                        <td>
+                            {% if enroll.grade %}{{ enroll.grade.total_percentage }}%{% else %}Pending{% endif %}
+                        </td>
+                        <td>
+                            {% if enroll.grade %}
+                                <span class="badge bg-primary">{{ enroll.grade.letter_grade }} ({{ enroll.grade.grade_points }})</span>
+                            {% else %}
+                                <span class="badge bg-secondary">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'instructor_grade' enroll.id %}" class="btn btn-outline-info btn-sm">
+                                <i class="bi bi-pencil-square me-1"></i> Grade Student
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
