@@ -12,15 +12,18 @@ urlpatterns = [
     path('login/', account_views.portal_login_view, name='login'),
     path('logout/', account_views.portal_logout_view, name='logout'),
     path('student/dashboard/', account_views.student_dashboard_view, name='student_dashboard'),
+    path('student/profile/', account_views.student_profile_view, name='student_profile'),
     path('instructor/dashboard/', account_views.instructor_dashboard_view, name='instructor_dashboard'),
     path('administrator/dashboard/', account_views.admin_dashboard_view, name='admin_dashboard'),
 
-    # Lesson 6 & 7 Interactive Academic Routes
+    # Interactive Academic & Attendance Routes
     path('student/enroll/<int:course_id>/', academic_views.enroll_course_view, name='enroll_course'),
     path('student/withdraw/<int:enrollment_id>/', academic_views.withdraw_course_view, name='withdraw_course'),
     path('student/submit/<int:assignment_id>/', academic_views.submit_assignment_view, name='submit_assignment'),
     path('student/transcript/download/', academic_views.download_transcript_view, name='download_transcript'),
     path('instructor/grade/<int:enrollment_id>/', academic_views.instructor_grade_view, name='instructor_grade'),
+    path('instructor/attendance/<int:enrollment_id>/', academic_views.instructor_attendance_view, name='instructor_attendance'),
+    path('instructor/attendance/<int:enrollment_id>/quick/<str:status_code>/', academic_views.quick_attendance_view, name='quick_attendance'),
 ]
 
 if settings.DEBUG:

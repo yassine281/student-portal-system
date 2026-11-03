@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}Record Attendance | Aether University{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="glass-card p-4 p-md-5">
+                <span class="badge-pill-glow mb-2 d-inline-block">
+                    <i class="bi bi-calendar-check-fill me-1"></i> Session Attendance Manager
+                </span>
+                <h3 class="fw-bold text-white mb-1">{{ enrollment.student.user.get_full_display_name }}</h3>
+                <p class="text-secondary small mb-4">
+                    Student ID: <span class="text-info">{{ enrollment.student.student_id }}</span> • Course: {{ enrollment.course.code }}
+                    • Current Rate: <strong class="text-white">{{ enrollment.course_attendance_percentage }}%</strong>
+                </p>
+
+                <form method="post" class="mb-4 pb-4 border-bottom border-secondary border-opacity-25">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Session Date</label>
+                        <input type="date" name="session_date" value="{{ today|date:'Y-m-d' }}"
+                               class="form-control bg-dark border-secondary text-white" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Attendance Status</label>
+                        <select name="status" class="form-select bg-dark border-secondary text-white">
+                            {% for val, label in statuses %}
+                                <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small text-secondary fw-semibold">Session Remarks (Optional)</label>
+                        <input type="text" name="remarks" placeholder="e.g., Medical excuse or lab participation"
+                               class="form-control bg-dark border-secondary text-white">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{% url 'instructor_dashboard' %}" class="btn btn-outline-light btn-sm">Back to Roster</a>
+                        <button type="submit" class="btn btn-gradient-primary btn-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Attendance Record
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Recent Attendance History for This Enrollment -->
+                <h6 class="fw-bold text-white mb-3">Recent Session Logs</h6>
+                <div class="list-group list-group-flush bg-transparent">
+                    {% for record in history %}
+                    <div class="list-group-item bg-dark bg-opacity-50 border-secondary text-white d-flex justify-content-between align-items-center py-2 rounded-3 mb-2 small">
+                        <span>{{ record.session_date|date:"M d, Y" }} — {{ record.remarks|default:"Standard session" }}</span>
+                        <span class="badge {% if record.status == 'ABSENT' %}bg-danger{% else %}bg-success{% endif %}">
+                            {{ record.get_status_display }}
+                        </span>
+                    </div>
+                    {% empty %}
+                    <p class="text-secondary small mb-0">No attendance sessions recorded yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

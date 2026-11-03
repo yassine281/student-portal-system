@@ -1,9 +1,10 @@
+from datetime import date
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from apps.accounts.models import Student
-from .models import Course, Enrollment, Assignment, Submission, Grade
+from apps.accounts.models import Student, Notification
+from .models import Course, Enrollment, Assignment, Submission, Grade, Attendance
 from .forms import SubmissionForm, GradeForm
 
 
@@ -73,6 +74,12 @@ def instructor_grade_view(request, enrollment_id):
         form = GradeForm(request.POST, instance=grade)
         if form.is_valid():
             form.save()
+            Notification.objects.create(
+                recipient=enrollment.student.user,
+                category=Notification.Category.GRADE,
+                title=f"Updated Grade: {enrollment.course.code}",
+                message=f"Your grade in {enrollment.course.title} is now {grade.letter_grade} ({grade.total_percentage}%).",
+            )
             messages.success(
                 request,
                 f"Grades updated for {enrollment.student.user.get_full_display_name()} ({enrollment.course.code}).",
@@ -86,6 +93,84 @@ def instructor_grade_view(request, enrollment_id):
         'enrollment': enrollment,
     }
     return render(request, 'instructors/grade_form.html', context)
+
+
+@login_required(login_url='login')
+def quick_attendance_view(request, enrollment_id, status_code):
+    """
+    1-Click Present / Absent handler on the Instructor Dashboard.
+    Automatically triggers a student warning notification if course attendance falls below 75%.
+    """
+    enrollment = get_object_or_404(Enrollment, id=enrollment_id)
+    valid_statuses = {
+        'PRESENT': Attendance.Status.PRESENT,
+        'ABSENT': Attendance.Status.ABSENT,
+    }
+    chosen_status = valid_statuses.get(status_code.upper(), Attendance.Status.PRESENT)
+
+    # Create a new session entry (using latest date + 1 day if today already has an entry so every click is visible)
+    latest_record = enrollment.attendance_records.order_by('-session_date').first()
+    target_date = date.today()
+    if latest_record and latest_record.session_date >= target_date:
+        from datetime import timedelta
+        target_date = latest_record.session_date + timedelta(days=1)
+
+    Attendance.objects.create(
+        enrollment=enrollment,
+        session_date=target_date,
+        status=chosen_status,
+        remarks=f"Recorded via 1-Click Instructor Console ({target_date})",
+    )
+
+    updated_pct = enrollment.course_attendance_percentage()
+    if updated_pct < 75.0:
+        Notification.objects.create(
+            recipient=enrollment.student.user,
+            category=Notification.Category.ATTENDANCE,
+            title=f"⚠️ Attendance Warning: {enrollment.course.code}",
+            message=f"Your attendance in {enrollment.course.title} dropped to {updated_pct}% (below the 75% minimum threshold).",
+        )
+        messages.warning(
+            request,
+            f"Marked {enrollment.student.user.get_full_display_name()} as {chosen_status}. Alert sent: Attendance is now {updated_pct}% (<75%)!",
+        )
+    else:
+        messages.success(
+            request,
+            f"Marked {enrollment.student.user.get_full_display_name()} as {chosen_status} for {enrollment.course.code} (Attendance: {updated_pct}%).",
+        )
+
+    return redirect('instructor_dashboard')
+
+
+@login_required(login_url='login')
+def instructor_attendance_view(request, enrollment_id):
+    """Allows instructors to record attendance for a specific custom date and view history."""
+    enrollment = get_object_or_404(Enrollment, id=enrollment_id)
+
+    if request.method == 'POST':
+        status_val = request.POST.get('status', Attendance.Status.PRESENT)
+        session_date = request.POST.get('session_date', str(date.today()))
+        remarks = request.POST.get('remarks', '').strip()
+
+        Attendance.objects.update_or_create(
+            enrollment=enrollment,
+            session_date=session_date,
+            defaults={'status': status_val, 'remarks': remarks},
+        )
+        messages.success(
+            request,
+            f"Attendance recorded as '{status_val}' on {session_date} for {enrollment.student.user.get_full_display_name()}.",
+        )
+        return redirect('instructor_dashboard')
+
+    context = {
+        'enrollment': enrollment,
+        'statuses': Attendance.Status.choices,
+        'today': date.today(),
+        'history': enrollment.attendance_records.all()[:10],
+    }
+    return render(request, 'instructors/attendance_form.html', context)
 
 
 @login_required(login_url='login')

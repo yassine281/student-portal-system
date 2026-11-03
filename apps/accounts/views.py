@@ -1,9 +1,7 @@
-import json
-from datetime import date
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from .models import User, Student, Instructor, Notification
 from apps.academics.models import (
     Department,
@@ -11,16 +9,12 @@ from apps.academics.models import (
     Course,
     Enrollment,
     Assignment,
-    Submission,
     Examination,
 )
 
 
 def portal_login_view(request):
-    """
-    Handles Student, Instructor, and Administrator authentication.
-    Supports logging in with either username OR institutional email.
-    """
+    """Handles Student, Instructor, and Administrator authentication."""
     if request.user.is_authenticated:
         return redirect(request.user.get_dashboard_url())
 
@@ -59,11 +53,7 @@ def portal_logout_view(request):
 
 @login_required(login_url='login')
 def student_dashboard_view(request):
-    """
-    STUDENT WORKSPACE:
-    Displays real-time GPA, attendance percentage, interactive enrollment/withdrawal,
-    assignment file uploads, notifications, and Chart.js performance analytics.
-    """
+    """STUDENT WORKSPACE DASHBOARD."""
     student = Student.objects.select_related('user', 'department').filter(user=request.user).first()
     if not student:
         messages.warning(request, 'Redirected to your authorized role workspace.')
@@ -75,9 +65,8 @@ def student_dashboard_view(request):
         .order_by('-semester__start_date', 'course__code')
     )
     active_enrollments = enrollments.filter(status=Enrollment.Status.ENROLLED)
-    enrolled_course_ids = list(active_enrollments.values_list('course_id', flat=True))
+    enrolled_course_ids = active_enrollments.values_list('course_id', flat=True)
 
-    # Prepare Course Catalog with OOP Eligibility Check
     catalog_courses = []
     if current_semester:
         raw_catalog = (
@@ -93,37 +82,15 @@ def student_dashboard_view(request):
                 'reason': reason,
             })
 
-    # Attach student's submission status to each assignment
-    raw_assignments = Assignment.objects.filter(
+    upcoming_assignments = Assignment.objects.filter(
         course_id__in=enrolled_course_ids
-    ).select_related('course').order_by('due_date')
-
-    submissions_map = {
-        sub.assignment_id: sub
-        for sub in Submission.objects.filter(student=student, assignment__in=raw_assignments)
-    }
-    assignments_with_status = [
-        {
-            'assignment': a,
-            'submission': submissions_map.get(a.id),
-        }
-        for a in raw_assignments
-    ]
+    ).select_related('course').order_by('due_date')[:5]
 
     upcoming_exams = Examination.objects.filter(
         course_id__in=enrolled_course_ids
     ).select_related('course').order_by('exam_date')[:5]
 
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)[:6]
-
-    # Build Chart.js Datasets from real database records
-    chart_labels = []
-    chart_scores = []
-    chart_attendance = []
-    for e in enrollments.exclude(status=Enrollment.Status.WITHDRAWN):
-        chart_labels.append(e.course.code)
-        chart_scores.append(e.grade.total_percentage if hasattr(e, 'grade') and e.grade else 0)
-        chart_attendance.append(e.course_attendance_percentage())
+    notifications = Notification.objects.filter(recipient=request.user)[:5]
 
     context = {
         'student': student,
@@ -133,24 +100,58 @@ def student_dashboard_view(request):
         'active_enrollments': active_enrollments,
         'all_enrollments': enrollments,
         'catalog_courses': catalog_courses,
-        'assignments_with_status': assignments_with_status,
+        'upcoming_assignments': upcoming_assignments,
         'upcoming_exams': upcoming_exams,
         'notifications': notifications,
         'total_credits': sum(e.course.credits for e in active_enrollments),
-        'chart_labels_json': json.dumps(chart_labels),
-        'chart_scores_json': json.dumps(chart_scores),
-        'chart_attendance_json': json.dumps(chart_attendance),
     }
     return render(request, 'students/dashboard.html', context)
 
 
 @login_required(login_url='login')
+def student_profile_view(request):
+    """Allows students to update their personal profile, upload an avatar photo, and change password."""
+    student = get_object_or_404(Student, user=request.user)
+    user = request.user
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'update_profile':
+            user.first_name = request.POST.get('first_name', user.first_name).strip()
+            user.last_name = request.POST.get('last_name', user.last_name).strip()
+            user.email = request.POST.get('email', user.email).strip()
+            user.phone_number = request.POST.get('phone_number', user.phone_number).strip()
+            if 'avatar' in request.FILES:
+                user.avatar = request.FILES['avatar']
+            user.save()
+            messages.success(request, 'Your profile information and photo have been updated!')
+            return redirect('student_profile')
+
+        elif action == 'change_password':
+            current_pw = request.POST.get('current_password', '')
+            new_pw = request.POST.get('new_password', '')
+            confirm_pw = request.POST.get('confirm_password', '')
+
+            if not user.check_password(current_pw):
+                messages.error(request, 'Your current password was entered incorrectly.')
+            elif len(new_pw) < 6:
+                messages.error(request, 'New password must be at least 6 characters long.')
+            elif new_pw != confirm_pw:
+                messages.error(request, 'New password and confirmation do not match.')
+            else:
+                user.set_password(new_pw)
+                user.save()
+                update_session_auth_hash(request, user)
+                messages.success(request, 'Your password has been changed securely!')
+                return redirect('student_profile')
+
+    return render(request, 'students/profile.html', {'student': student})
+
+
+@login_required(login_url='login')
 def instructor_dashboard_view(request):
-    """
-    INSTRUCTOR WORKSPACE:
-    Displays assigned courses, enrolled student rosters, interactive attendance logger,
-    weighted grade calculator forms, and assignment publisher.
-    """
+    """INSTRUCTOR WORKSPACE DASHBOARD."""
     instructor = Instructor.objects.select_related('user', 'department').filter(user=request.user).first()
     if not instructor and not request.user.is_administrator:
         messages.warning(request, 'Access restricted to faculty members.')
@@ -159,35 +160,27 @@ def instructor_dashboard_view(request):
     assigned_courses = (
         Course.objects.filter(instructor=instructor)
         .select_related('semester', 'department')
+        .prefetch_related('enrollments__student__user', 'enrollments__grade')
     ) if instructor else Course.objects.all()
 
     enrollments = Enrollment.objects.filter(
         course__in=assigned_courses,
         status=Enrollment.Status.ENROLLED,
-    ).select_related('student__user', 'course', 'grade').order_by('course__code', 'student__student_id')
-
-    recent_submissions = Submission.objects.filter(
-        assignment__course__in=assigned_courses
-    ).select_related('student__user', 'assignment__course').order_by('-created_at')[:8]
+    ).select_related('student__user', 'course', 'grade')
 
     context = {
         'instructor': instructor,
         'assigned_courses': assigned_courses,
         'enrollments': enrollments,
-        'recent_submissions': recent_submissions,
         'total_students_taught': enrollments.count(),
         'total_courses': assigned_courses.count(),
-        'today_iso': date.today().isoformat(),
     }
     return render(request, 'instructors/dashboard.html', context)
 
 
 @login_required(login_url='login')
 def admin_dashboard_view(request):
-    """
-    ADMINISTRATOR WORKSPACE:
-    Displays institutional analytics, departments, courses, user records, and course creation form.
-    """
+    """ADMINISTRATOR COMMAND CENTER."""
     if not request.user.is_administrator:
         messages.error(request, 'Access denied: Administrator privileges required.')
         return redirect(request.user.get_dashboard_url())
@@ -197,11 +190,9 @@ def admin_dashboard_view(request):
         'total_instructors': Instructor.objects.count(),
         'total_courses': Course.objects.count(),
         'total_departments': Department.objects.count(),
-        'total_enrollments': Enrollment.objects.filter(status=Enrollment.Status.ENROLLED).count(),
+        'total_enrollments': Enrollment.objects.count(),
         'students_list': Student.objects.select_related('user', 'department').all()[:10],
-        'courses_list': Course.objects.select_related('department', 'instructor__user', 'semester').all(),
-        'departments': Department.objects.all(),
-        'instructors': Instructor.objects.select_related('user').all(),
+        'courses_list': Course.objects.select_related('department', 'instructor__user', 'semester').all()[:10],
         'semesters': AcademicSemester.objects.all(),
     }
     return render(request, 'admin_dashboard/dashboard.html', context)
