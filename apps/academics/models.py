@@ -1,13 +1,9 @@
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import connection, models
 from apps.accounts.models import TimeStampedModel
 
 
 class Department(TimeStampedModel):
-    """
-    DEPARTMENT ENTITY:
-    Organizes courses, instructors, and students under an academic department.
-    """
     code = models.CharField(max_length=15, unique=True)
     name = models.CharField(max_length=120)
     faculty_name = models.CharField(
@@ -21,10 +17,6 @@ class Department(TimeStampedModel):
 
 
 class AcademicSemester(TimeStampedModel):
-    """
-    ACADEMIC SEMESTER ENTITY:
-    Represents an academic term (e.g., Fall 2026/2027) and controls enrollment windows.
-    """
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=80)
     start_date = models.DateField()
@@ -38,10 +30,6 @@ class AcademicSemester(TimeStampedModel):
 
 
 class Course(TimeStampedModel):
-    """
-    COURSE AGGREGATE ENTITY:
-    Encapsulates capacity limits, schedule slots, prerequisites, and seat reservation validation.
-    """
     code = models.CharField(max_length=20, unique=True)
     title = models.CharField(max_length=140)
     description = models.TextField(blank=True)
@@ -77,7 +65,12 @@ class Course(TimeStampedModel):
 
     @property
     def enrolled_count(self) -> int:
-        return self.enrollments.filter(status=Enrollment.Status.ENROLLED).count()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM academics_enrollment WHERE course_id = %s AND status = 'ENROLLED'",
+                [self.id],
+            )
+            return int(cursor.fetchone()[0])
 
     @property
     def remaining_seats(self) -> int:
@@ -88,42 +81,16 @@ class Course(TimeStampedModel):
         return self.remaining_seats <= 0
 
     def can_student_enroll(self, student) -> tuple[bool, str]:
-        """
-        OOP Encapsulated Validation: Checks duplicate enrollment, seat capacity,
-        and prerequisite completion before permitting course registration.
-        """
-        if not self.semester.enrollment_open:
-            return False, f"Enrollment for {self.semester.name} is currently closed."
-
-        if self.enrollments.filter(student=student, status=Enrollment.Status.ENROLLED).exists():
-            return False, f"You are already enrolled in {self.code}."
-
-        if self.is_full:
-            return False, f"Course {self.code} has reached its full capacity of {self.max_capacity} seats."
-
-        if self.prerequisite:
-            completed_prereq = Enrollment.objects.filter(
-                student=student,
-                course=self.prerequisite,
-                grade__grade_points__gte=2.0,
-            ).exists()
-            if not completed_prereq:
-                return (
-                    False,
-                    f"Prerequisite not met: You must pass {self.prerequisite.code} (min 2.0 GPA) first.",
-                )
-
-        return True, "Eligible for enrollment."
+        """Validates course enrollment rules using Pure Raw SQL (No ORM)."""
+        from apps.academics.sql_repository import RawSQLPortalRepository
+        student_pk = student['student_pk'] if isinstance(student, dict) else student.id
+        return RawSQLPortalRepository.check_enrollment_eligibility_sql(student_pk, self.id)
 
     def __str__(self) -> str:
         return f"{self.code}: {self.title} ({self.credits} Cr)"
 
 
 class Enrollment(TimeStampedModel):
-    """
-    ENROLLMENT ENTITY:
-    Links a Student to a Course for an AcademicSemester and tracks completion status.
-    """
     class Status(models.TextChoices):
         ENROLLED = 'ENROLLED', 'Enrolled'
         COMPLETED = 'COMPLETED', 'Completed'
@@ -154,23 +121,30 @@ class Enrollment(TimeStampedModel):
         unique_together = ('student', 'course', 'semester')
 
     def course_attendance_percentage(self) -> float:
-        total = self.attendance_records.count()
-        if total == 0:
-            return 100.0
-        present = self.attendance_records.filter(
-            status__in=[Attendance.Status.PRESENT, Attendance.Status.LATE, Attendance.Status.EXCUSED]
-        ).count()
-        return round((present / total) * 100.0, 1)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    COALESCE(
+                        ROUND(
+                            100.0 * SUM(CASE WHEN status IN ('PRESENT', 'LATE', 'EXCUSED') THEN 1 ELSE 0 END)
+                            / NULLIF(COUNT(id), 0),
+                            1
+                        ),
+                        100.0
+                    )
+                FROM academics_attendance
+                WHERE enrollment_id = %s
+                """,
+                [self.id],
+            )
+            return float(cursor.fetchone()[0])
 
     def __str__(self) -> str:
         return f"{self.student.student_id} -> {self.course.code} ({self.status})"
 
 
 class Attendance(TimeStampedModel):
-    """
-    ATTENDANCE ENTITY:
-    Records session-by-session student presence for a specific course enrollment.
-    """
     class Status(models.TextChoices):
         PRESENT = 'PRESENT', 'Present'
         ABSENT = 'ABSENT', 'Absent'
@@ -199,11 +173,6 @@ class Attendance(TimeStampedModel):
 
 
 class Grade(TimeStampedModel):
-    """
-    GRADE ENTITY (OOP Encapsulation):
-    Automatically computes weighted percentage (30% Assignments, 30% Midterm, 40% Final),
-    letter grade, and 4.00 scale grade points whenever saved.
-    """
     enrollment = models.OneToOneField(
         Enrollment,
         on_delete=models.CASCADE,
@@ -263,10 +232,6 @@ class Grade(TimeStampedModel):
 
 
 class Assignment(TimeStampedModel):
-    """
-    ASSIGNMENT ENTITY:
-    Represents coursework published by an instructor with a submission deadline.
-    """
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
@@ -282,10 +247,6 @@ class Assignment(TimeStampedModel):
 
 
 class Submission(TimeStampedModel):
-    """
-    SUBMISSION ENTITY:
-    Stores a student's uploaded assignment file and instructor feedback/score.
-    """
     assignment = models.ForeignKey(
         Assignment,
         on_delete=models.CASCADE,
@@ -309,10 +270,6 @@ class Submission(TimeStampedModel):
 
 
 class Examination(TimeStampedModel):
-    """
-    EXAMINATION ENTITY:
-    Schedules midterm and final examinations with room and duration details.
-    """
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,

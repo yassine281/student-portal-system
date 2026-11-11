@@ -6,8 +6,7 @@ from django.urls import reverse
 class TimeStampedModel(models.Model):
     """
     ABSTRACT BASE CLASS (OOP Abstraction & Inheritance):
-    Provides automatic created_at and updated_at audit fields to all child models
-    without creating a separate database table.
+    Provides automatic created_at and updated_at audit fields to all child models.
     """
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -19,7 +18,7 @@ class TimeStampedModel(models.Model):
 class User(AbstractUser):
     """
     CORE USER ENTITY (OOP Inheritance & Polymorphism):
-    Extends Django's secure AbstractUser with Role-Based Access Control (RBAC).
+    Extends Django's AbstractUser with Role-Based Access Control (RBAC).
     """
     class Role(models.TextChoices):
         STUDENT = 'STUDENT', 'Student'
@@ -39,10 +38,6 @@ class User(AbstractUser):
         return full_name if full_name else self.username
 
     def get_dashboard_url(self) -> str:
-        """
-        OOP Polymorphic routing: returns the appropriate workspace URL
-        based on the user's institutional role.
-        """
         if self.role == self.Role.ADMINISTRATOR or self.is_superuser:
             return reverse('admin_dashboard')
         if self.role == self.Role.INSTRUCTOR:
@@ -68,7 +63,7 @@ class User(AbstractUser):
 class Student(TimeStampedModel):
     """
     STUDENT DOMAIN ENTITY:
-    Encapsulates student academic standing, GPA calculation, and attendance analytics.
+    Delegates GPA and attendance calculations to Pure Raw SQL aggregations.
     """
     class AcademicStatus(models.TextChoices):
         GOOD_STANDING = 'GOOD_STANDING', 'Good Standing'
@@ -95,43 +90,19 @@ class Student(TimeStampedModel):
     )
 
     def calculate_gpa(self) -> float:
-        """
-        OOP Encapsulation: Computes credit-weighted cumulative GPA (4.00 scale)
-        across all graded enrollments belonging to this student.
-        """
-        enrollments = self.enrollments.select_related('course', 'grade').all()
-        total_points = 0.0
-        total_credits = 0
-
-        for enrollment in enrollments:
-            if hasattr(enrollment, 'grade') and enrollment.grade is not None:
-                credits = enrollment.course.credits
-                total_points += enrollment.grade.grade_points * credits
-                total_credits += credits
-
-        if total_credits == 0:
-            return 0.00
-        return round(total_points / total_credits, 2)
+        """Computes credit-weighted cumulative GPA via Raw SQL JOIN (No ORM)."""
+        from apps.academics.sql_repository import RawSQLPortalRepository
+        summary = RawSQLPortalRepository.get_student_analytical_summary_sql(self.id)
+        return summary['gpa']
 
     def calculate_attendance_percentage(self) -> float:
-        """
-        Calculates overall attendance percentage across all enrolled courses.
-        """
-        from apps.academics.models import Attendance
-
-        records = Attendance.objects.filter(enrollment__student=self)
-        total_sessions = records.count()
-        if total_sessions == 0:
-            return 100.0
-
-        attended_sessions = records.filter(
-            status__in=[Attendance.Status.PRESENT, Attendance.Status.LATE, Attendance.Status.EXCUSED]
-        ).count()
-        return round((attended_sessions / total_sessions) * 100.0, 1)
+        """Computes overall attendance percentage via Raw SQL JOIN (No ORM)."""
+        from apps.academics.sql_repository import RawSQLPortalRepository
+        summary = RawSQLPortalRepository.get_student_analytical_summary_sql(self.id)
+        return summary['attendance_pct']
 
     @property
     def has_attendance_warning(self) -> bool:
-        """Returns True if overall attendance drops below the mandatory 75.0% threshold."""
         return self.calculate_attendance_percentage() < 75.0
 
     def __str__(self) -> str:
@@ -139,10 +110,6 @@ class Student(TimeStampedModel):
 
 
 class Instructor(TimeStampedModel):
-    """
-    INSTRUCTOR DOMAIN ENTITY:
-    Represents university faculty members authorized to teach courses and record grades.
-    """
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -162,10 +129,6 @@ class Instructor(TimeStampedModel):
 
 
 class Administrator(TimeStampedModel):
-    """
-    ADMINISTRATOR DOMAIN ENTITY:
-    Represents registrar and institutional staff with system management privileges.
-    """
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -180,10 +143,6 @@ class Administrator(TimeStampedModel):
 
 
 class Notification(TimeStampedModel):
-    """
-    NOTIFICATION ENTITY:
-    Delivers real-time alerts for grades, attendance warnings, and assignment deadlines.
-    """
     class Category(models.TextChoices):
         ACADEMIC = 'ACADEMIC', 'Academic Announcement'
         ATTENDANCE = 'ATTENDANCE', 'Attendance Warning'
